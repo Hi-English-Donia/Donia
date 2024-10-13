@@ -170,7 +170,7 @@ export default function Component() {
   const [editingTask, setEditingTask] = useState<{ day: string; index: number; field: 'text' | 'category' } | null>(null)
   const [showStatistics, setShowStatistics] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [calendarTaps, setCalendarTaps] = useState(0)
+  const [, setCalendarTaps] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -521,7 +521,7 @@ export default function Component() {
                               transformOrigin: "center"
                             }}
                           >
-                            <TaskIcon className="text-purple-600" />
+                            <TaskIcon />
                           </motion.div>
                         </div>
                         {isAdmin && editingTask?.day === activeDay && editingTask?.index === index && editingTask?.field === 'text' ? (
@@ -606,7 +606,7 @@ export default function Component() {
                 className="bg-gradient-to-r from-pink-400 to-red-500 text-white px-3 py-1 rounded-full text-sm hover:from-pink-500 hover:to-red-600 transition-all duration-300"
                 onClick={() => setShowLinkInput(true)}
                 whileHover={{ scale: 1.05 }}
-                wh ileTap={{ scale: 0.95 }}
+                whileTap={{ scale: 0.95 }}
               >
                 إضافة رابط
                 <Plus className="inline-block mr-1" size={16} />
