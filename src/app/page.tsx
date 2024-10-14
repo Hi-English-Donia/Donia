@@ -28,6 +28,9 @@ import {
   TrendingUp,
   Mic,
 } from 'lucide-react'
+import { initializeApp } from 'firebase/app'
+import { getFirestore, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
+import { useSearchParams } from 'next/navigation'
 
 const notoSansArabic = Noto_Sans_Arabic({
   subsets: ['arabic'],
@@ -38,6 +41,20 @@ const ibmPlexSansArabic = IBM_Plex_Sans_Arabic({
   subsets: ['arabic'],
   weight: ['700'],
 })
+
+// Initialize Firebase (replace with your own config)
+const firebaseConfig = {
+  apiKey: "AIzaSyAbFYwT0gVwTPZAtm_tZk1m8_6BZT26MB8",
+  authDomain: "hi-english-ec39a.firebaseapp.com",
+  projectId: "hi-english-ec39a",
+  storageBucket: "hi-english-ec39a.appspot.com",
+  messagingSenderId: "1046877127505",
+  appId: "1:1046877127505:web:62e587e22ce1e33a1f4970",
+  measurementId: "G-L58NWF799R"
+}
+
+const app = initializeApp(firebaseConfig)
+const db = getFirestore(app)
 
 const days = ['السبت', 'الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة']
 const dayIcons = [Sunrise, Sun, Moon, Star, Rainbow, Cloud, Sunset]
@@ -170,17 +187,25 @@ export default function Component() {
   const [editingTask, setEditingTask] = useState<{ day: string; index: number; field: 'text' | 'category' } | null>(null)
   const [showStatistics, setShowStatistics] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [, setCalendarTaps] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
+  const searchParams = useSearchParams()
+  const role = searchParams.get('role')
+
   useEffect(() => {
-    const loadTasks = () => {
+    const loadTasks = async () => {
       try {
-        const savedTasks = localStorage.getItem('englishLearningTasks')
-        if (savedTasks) {
-          setTasksData(JSON.parse(savedTasks))
+        const docRef = doc(db, 'tasks', 'weeklyTasks')
+        const docSnap = await getDoc(docRef)
+
+        if (docSnap.exists()) {
+          setTasksData(docSnap.data() as TasksData)
         } else {
           initializeDefaultTasks()
+        }
+
+        if (role === 'admin') {
+          setIsAdmin(true)
         }
       } catch (error) {
         console.error('Error loading tasks:', error)
@@ -190,9 +215,9 @@ export default function Component() {
     }
 
     loadTasks()
-  }, [])
+  }, [role])
 
-  const initializeDefaultTasks = useCallback(() => {
+  const initializeDefaultTasks = useCallback(async () => {
     const initialData: TasksData = {}
     days.forEach((day) => {
       initialData[day] = {
@@ -203,14 +228,26 @@ export default function Component() {
       }
     })
     setTasksData(initialData)
+    try {
+      await setDoc(doc(db, 'tasks', 'weeklyTasks'), initialData)
+    } catch (error) {
+      console.error('Error initializing default tasks:', error)
+      setError('Failed to initialize default tasks. Please try again.')
+    }
   }, [])
 
   useEffect(() => {
-    try {
-      localStorage.setItem('englishLearningTasks', JSON.stringify(tasksData))
-    } catch (error) {
-      console.error('Error saving tasks:', error)
-      setError('Failed to save tasks. Please check your browser settings.')
+    const saveTasks = async () => {
+      try {
+        await updateDoc(doc(db, 'tasks', 'weeklyTasks'), tasksData)
+      } catch (error) {
+        console.error('Error saving tasks:', error)
+        setError('Failed to save tasks. Please try again.')
+      }
+    }
+
+    if (Object.keys(tasksData).length > 0) {
+      saveTasks()
     }
   }, [tasksData])
 
@@ -275,6 +312,7 @@ export default function Component() {
 
   const deleteLink = useCallback(() => {
     if (!isAdmin) return
+    
     setTasksData(prev => ({
       ...prev,
       [activeDay]: {
@@ -310,35 +348,6 @@ export default function Component() {
     })
   }, [isAdmin])
 
-  const toggleAdminMode = useCallback(() => {
-    setIsAdmin(prev => !prev)
-  }, [])
-
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'a') {
-      event.preventDefault()
-      setIsAdmin(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [handleKeyDown])
-
-  const handleCalendarTap = useCallback(() => {
-    setCalendarTaps(prevTaps => {
-      if (prevTaps === 4) {
-        setIsAdmin(true)
-        return 0
-      }
-      setTimeout(() => setCalendarTaps(0), 1500)
-      return prevTaps + 1
-    })
-  }, [])
-
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen bg-red-100">
@@ -367,7 +376,6 @@ export default function Component() {
         <TypewriterEffect text="جدول المهام الأسبوعي لتعلم اللغة الإنجليزية" speed={20} />
         <CalendarDays 
           className="inline-block mr-2 text-blue-900 cursor-pointer" 
-          onClick={handleCalendarTap}
         />
       </motion.h1>
       
@@ -376,7 +384,6 @@ export default function Component() {
           {isAdmin && (
             <motion.button
               className="px-4 py-2 rounded-full text-sm font-bold focus:outline-none transition-colors duration-300 bg-blue-500 text-white"
-              onClick={toggleAdminMode}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               initial={{ opacity: 0, x: -20 }}
@@ -606,7 +613,7 @@ export default function Component() {
                 className="bg-gradient-to-r from-pink-400 to-red-500 text-white px-3 py-1 rounded-full text-sm hover:from-pink-500 hover:to-red-600 transition-all duration-300"
                 onClick={() => setShowLinkInput(true)}
                 whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                whileTap={{  scale: 0.95 }}
               >
                 إضافة رابط
                 <Plus className="inline-block mr-1" size={16} />
@@ -618,7 +625,7 @@ export default function Component() {
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.2 }}
                   className="flex flex-col sm:flex-row items-center mt-2"
                 >
                   <input
